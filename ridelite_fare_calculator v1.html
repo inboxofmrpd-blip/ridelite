@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>Ridelite — Fare Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0b0b0b;--card:#0f0f10;--muted:#bfc3c6;--accent:#007bff;--white:#ffffff}
+    html,body{height:100%;margin:0;font-family:'Comic Neue', cursive}
+    body{background:linear-gradient(180deg,#050505 0%,#0b0b0b 100%);color:var(--white);display:flex;align-items:center;justify-content:center;padding:16px}
+    .card{width:100%;max-width:480px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.03);text-align:center}
+    header{margin-bottom:16px}
+    h1{font-size:20px;margin:0;font-weight:700}
+    p.lead{margin:0;color:var(--muted);font-size:12px}
+
+    .panel{margin-bottom:14px;text-align:left}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input[type=number], input[type=datetime-local], select{width:100%;padding:9px 10px;border-radius:8px;background:#0b0b0b;border:1px solid rgba(255,255,255,0.06);color:var(--white);font-size:14px;font-family:'Comic Neue', cursive}
+    .row{display:flex;gap:8px}
+    .row>div{flex:1}
+    .btn{display:inline-block;padding:10px 14px;border-radius:8px;background:var(--accent);color:#ffffff;font-weight:700;border:none;cursor:pointer;width:100%;font-family:'Comic Neue', cursive}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--white)}
+
+    .actions{display:flex;gap:8px;margin-top:10px}
+
+    .result{background:linear-gradient(180deg, rgba(255,255,255,0.015), transparent);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-top:14px;text-align:left}
+    .big{font-size:20px;font-weight:700}
+    .muted{color:var(--muted);font-size:12px}
+    .note{font-size:11px;color:var(--muted);margin-top:8px}
+    .alert{color:#ff8080;font-size:13px;font-weight:600;margin-top:10px}
+
+    footer{margin-top:10px;color:var(--muted);font-size:11px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="card" role="main">
+    <header>
+      <h1>Ridelite Fare Calculator</h1>
+      <p class="lead">Select trip type, kms & times. Auto-picks correct slab and extra time fees.</p>
+    </header>
+
+    <div class="panel">
+      <label>Trip Type</label>
+      <select id="tripType">
+        <option value="round">Round Trip</option>
+        <option value="pickupdrop">Pickup & Drop</option>
+      </select>
+    </div>
+
+    <div class="panel">
+      <label>Starting kilometer (km)</label>
+      <input id="startKm" type="number" min="0" step="0.1" value="0" />
+    </div>
+
+    <div class="panel">
+      <label>Ending kilometer (km)</label>
+      <input id="endKm" type="number" min="0" step="0.1" value="10" />
+    </div>
+
+    <div class="row panel">
+      <div>
+        <label>Start time</label>
+        <input id="startTime" type="datetime-local" />
+      </div>
+      <div>
+        <label>End time</label>
+        <input id="endTime" type="datetime-local" />
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="calcBtn">Calculate Fare</button>
+      <button class="btn secondary" id="resetBtn">Reset</button>
+    </div>
+
+    <div id="alertMessage" class="alert" style="display:none"></div>
+
+    <div class="result">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="muted">Distance</div>
+          <div id="distance" class="big">— km</div>
+        </div>
+        <div>
+          <div class="muted">Time taken</div>
+          <div id="timeTaken" class="big">—</div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04);margin:10px 0" />
+
+      <div class="muted">Matched slab</div>
+      <div id="matchedSlab" style="font-weight:700;margin-bottom:6px">—</div>
+
+      <div style="display:flex;justify-content:space-between">
+        <div class="muted">Fare (slab)</div>
+        <div id="slabFare">—</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between">
+        <div class="muted">Extra Time Fee</div>
+        <div id="waitingFare">—</div>
+      </div>
+
+      <div id="waitingDetail" class="note" style="display:none"></div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04);margin:10px 0" />
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="muted">Total payable</div>
+        <div id="totalFare" class="big">—</div>
+      </div>
+    </div>
+
+    <div class="note">Extra Time Fee = ₹2/min beyond allotted slab time.</div>
+
+    <footer>
+      Fares from Ridelite fare chart.
+    </footer>
+  </div>
+
+  <script>
+    const slabs = [
+      {maxKm:5, round:200, pickup:260, allottedMins:0.25*60},
+      {maxKm:10, round:300, pickup:390, allottedMins:0.5*60},
+      {maxKm:20, round:400, pickup:560, allottedMins:1*60},
+      {maxKm:50, round:500, pickup:700, allottedMins:1.25*60},
+      {maxKm:70, round:600, pickup:840, allottedMins:1.75*60},
+      {maxKm:100, round:800, pickup:1120, allottedMins:2.5*60},
+      {maxKm:120, round:900, pickup:1260, allottedMins:3*60},
+      {maxKm:150, round:1000, pickup:1400, allottedMins:3.75*60},
+      {maxKm:170, round:1100, pickup:1540, allottedMins:4.25*60},
+      {maxKm:200, round:1200, pickup:1680, allottedMins:5*60},
+      {maxKm:220, round:1300, pickup:1820, allottedMins:5.5*60},
+      {maxKm:250, round:1400, pickup:1960, allottedMins:6.25*60},
+      {maxKm:270, round:1500, pickup:2100, allottedMins:6.75*60},
+      {maxKm:300, round:1600, pickup:2240, allottedMins:7.5*60},
+      {maxKm:320, round:1700, pickup:2380, allottedMins:8*60},
+      {maxKm:350, round:1800, pickup:2520, allottedMins:8.75*60},
+      {maxKm:370, round:1900, pickup:2660, allottedMins:9.25*60},
+      {maxKm:400, round:2000, pickup:2800, allottedMins:10*60}
+    ];
+
+    const EXTRA_PER_MIN = 2;
+
+    function findSlabForDistance(km){
+      for(const s of slabs){ if(km <= s.maxKm) return s; }
+      return null;
+    }
+
+    function formatCurrency(x){ return '₹' + x.toFixed(0); }
+
+    function formatHM(mins){
+      const h = Math.floor(mins/60);
+      const m = mins % 60;
+      let parts=[];
+      if(h>0) parts.push(h+" hr");
+      if(m>0) parts.push(m+" min");
+      if(parts.length===0) parts.push("0 min");
+      return parts.join(" ");
+    }
+
+    function calculate(){
+      document.getElementById('alertMessage').style.display = 'none';
+      const tripType = document.getElementById('tripType').value;
+      const startKm = parseFloat(document.getElementById('startKm').value) || 0;
+      const endKm = parseFloat(document.getElementById('endKm').value) || 0;
+      const startTimeStr = document.getElementById('startTime').value;
+      const endTimeStr = document.getElementById('endTime').value;
+
+      const distance = +(endKm - startKm).toFixed(2);
+      if(distance <= 0){ alert('Please ensure the ending km is greater than starting km.'); return; }
+
+      if(distance > 400){
+        document.getElementById('alertMessage').textContent = "Distance exceeds 400 km. Please contact the Ridelite office for a personalized fare according to your need.";
+        document.getElementById('alertMessage').style.display = 'block';
+        document.getElementById('distance').textContent = distance + ' km';
+        document.getElementById('timeTaken').textContent = '—';
+        document.getElementById('matchedSlab').textContent = '—';
+        document.getElementById('slabFare').textContent = '—';
+        document.getElementById('waitingFare').textContent = '—';
+        document.getElementById('waitingDetail').style.display = 'none';
+        document.getElementById('totalFare').textContent = '—';
+        return;
+      }
+
+      let timeTakenMins = null;
+      if(startTimeStr && endTimeStr){
+        const st = new Date(startTimeStr);
+        const et = new Date(endTimeStr);
+        const diffMs = et - st;
+        if(isNaN(diffMs) || diffMs <= 0){ alert('Please ensure end time is after start time.'); return; }
+        timeTakenMins = Math.round(diffMs / 60000);
+      }
+
+      const slab = findSlabForDistance(distance);
+      let slabFare = 0;
+      let matchedText = '';
+      let allottedText = '';
+      if(slab){
+        slabFare = (tripType === 'round') ? slab.round : slab.pickup;
+        matchedText = `${slab.maxKm} km slab (${tripType==='round'?'Round Trip':'Pickup & Drop'})`;
+        allottedText = `Allotted time: ${formatHM(slab.allottedMins)}`;
+      }
+
+      let extraCharge = 0;
+      let extraText = '';
+      if(timeTakenMins !== null && slab){
+        const refAllotted = slab.allottedMins;
+        const extra = Math.max(0, timeTakenMins - refAllotted);
+        extraCharge = extra * EXTRA_PER_MIN;
+        if(extra > 0){
+          extraText = `Extra time: ${formatHM(extra)} × ₹${EXTRA_PER_MIN} = ${formatCurrency(extraCharge)}`;
+        } else {
+          extraText = `No extra time fee (within allotted).`;
+        }
+      }
+
+      const total = slabFare + extraCharge;
+
+      document.getElementById('distance').textContent = distance + ' km';
+      document.getElementById('timeTaken').textContent = timeTakenMins === null ? '—' : formatHM(timeTakenMins);
+      document.getElementById('matchedSlab').textContent = matchedText + (allottedText?" — "+allottedText:"");
+      document.getElementById('slabFare').textContent = formatCurrency(slabFare);
+      document.getElementById('waitingFare').textContent = formatCurrency(extraCharge);
+      document.getElementById('totalFare').textContent = formatCurrency(total);
+
+      const waitingDetail = document.getElementById('waitingDetail');
+      waitingDetail.style.display = extraText ? 'block' : 'none';
+      waitingDetail.textContent = extraText;
+    }
+
+    document.getElementById('calcBtn').addEventListener('click', calculate);
+    document.getElementById('resetBtn').addEventListener('click', ()=> location.reload());
+
+    window.addEventListener('DOMContentLoaded', ()=>{
+      const now = new Date();
+      const iso = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+      document.getElementById('startTime').value = iso;
+      document.getElementById('endTime').value = iso;
+    });
+  </script>
+</body>
+</html>
